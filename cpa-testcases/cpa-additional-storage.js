@@ -78,6 +78,7 @@ describe('GoFastCPA Creating Additional Storage', () => {
         cy.intercept({method:'POST', url:'import/updateExemption'}).as('getupdateExemption');
         cy.intercept({method:'POST', url:'/wallet/transactions'}).as('getWalletTransactions');
         cy.intercept({method:'POST', url:'/additionalStorageContainer/create'}).as('getResult');
+        cy.intercept({method:'POST', url:'additionalStorageContainer/search'}).as('getAdditionalStorageContainer');  
         cy.intercept({method:'POST', url:'/exemption/search'}).as('getExemption');
         cy.wait('@getExemption')
         cy.wait('@getResult')
@@ -117,8 +118,7 @@ describe('GoFastCPA Creating Additional Storage', () => {
                 {
                     cy.wait('@getWalletTransactions').its('response.statusCode').should('equal',200);
                     cy.get('.sm7 > :nth-child(5) > .col-sm-7').should('contain','COMPLETE')
-                    cy.intercept({method:'POST', url:'/additionalStorage/update'}).as('getAdditionalStorage');
-                    cy.wait('@getAdditionalStorage')
+                    cy.wait('@getAdditionalStorageContainer')
                     .its('response.statusCode')
                     .should('equal',200);
                 });
@@ -146,15 +146,11 @@ describe('GoFastCPA Creating Additional Storage', () => {
             cy.contains('.sm7 > :nth-child(5) > .col-sm-7',/^PAID/)
         }
         })
-        cy.intercept({method:'POST', url:'/additionalStorage/update'}).as('getAdditionalStorage');
         cy.contains('Apply').click({force: true})
-        .wait('@getAdditionalStorage')
+        .wait('@getWalletTransactions')
         .its('response.statusCode')
-        .should('equal',200);  
+        .should('equal',200);
         cy.get('.sm7 > :nth-child(5) > .col-sm-7').should('contain','FOR ASSESSMENT')
-        //cy.get('div[class="v-input v-input--is-readonly theme--light v-text-field v-text-field--is-booted"]').click({multiple: true})
-        //cy.get('[id=Save]').click({force: true})
-        //cy.contains('WHLU4316560').prev().click({force: true})
     })
     it('Log out to GoFASTCpa', () =>{
         cy.get('[id=profileAvatar-id]').click({force: true})

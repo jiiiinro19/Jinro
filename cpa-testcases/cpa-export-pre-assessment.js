@@ -1,5 +1,5 @@
-// import { recurse } from 'cypress-recurse'
-// import dayjs from 'dayjs'
+import { recurse } from 'cypress-recurse'
+import dayjs from 'dayjs'
 describe('GoFastCPA Creating Additional Storage', () => {
     let data;
     beforeEach(function () {
@@ -37,6 +37,10 @@ describe('GoFastCPA Creating Additional Storage', () => {
         cy.intercept({method:'POST', url:'user/getuserdetails'}).as('getUserDetails');
         cy.intercept({method:'POST', url:'export/updateExemption'}).as('getUpdateExemptions');
         cy.intercept({method:'POST', url:'export/uploadOr'}).as('getUploadOr');
+        cy.intercept({method:'POST', url:'wallet/transactions'}).as('getWalletTransaction');
+        cy.intercept({method:'POST', url:'exportStorage/search'}).as('getExportStorage');
+        cy.intercept({method:'POST', url:'user/listUserRoles'}).as('getUserListUserRoles');
+        
         cy.contains('Create Export Pre-Assessment').click({force:true})
         .wait('@getExport');
         
@@ -45,29 +49,41 @@ describe('GoFastCPA Creating Additional Storage', () => {
                 cy.get('.container.grid-list-md').should('be.visible')
                 cy.get('#Transactiontype-id').click().then($le =>
                     {
-                        cy.get('.v-list-item__content').contains('Empty').click({force: true})
+                        cy.get('.v-list-item__content').contains(data.export_pre_assessment_form.transaction_type).click({force: true})
                     });
-                cy.get('#brokerName-id').type('testBroker').wait(100);
-                cy.get('#brokerTin-id').type('0123456789').wait(100);
-                cy.get('#commodity-id').type('testCommodity').wait(100);
-                cy.get('.container.grid-list-md').find('#EDNo-id').type('testEDNo').wait(100);
-                cy.get('#VesselNo-id').type('testVesselNo').wait(100);
-                cy.get('#arrastre-id').clear().type('5').wait(100);
+                cy.get('#brokerName-id').type(data.export_pre_assessment_form.broker_name).wait(100);
+                cy.get('#brokerTin-id').type(data.export_pre_assessment_form.broker_tin).wait(100);
+                cy.get('#commodity-id').type(data.export_pre_assessment_form.commodity).wait(100);
+                cy.get('.container.grid-list-md').find('#EDNo-id').type(data.export_pre_assessment_form.edNo).wait(100);
+                cy.get('#VesselNo-id').type(data.export_pre_assessment_form.vesselNo).wait(100);
+                cy.get('#arrastre-id').clear().type(data.export_pre_assessment_form.arrastreNo).wait(100);
+                cy.get('#vesselArrivalDate-id')
+                .click({showOn: "button",buttonText: "day"})
+                .then($datePicker =>
+                    { 
+                        const targetDate = dayjs()
+                        .add(0, 'year')
+                        .add(0, 'month')
+                        .add(5, 'day')
+                        .format('MM/DD/YYYY')
+                        cy.get('.v-date-picker-table')
+                        .find('table')
+                        .each(($el,index,$list) =>
+                            {
+                                var dateName = $el.text()
+                                if(dateName == targetDate)
+                                {
+                                    cy.wrap($el).invoke('dateName').click();
+                                }
+                            })
+                    })    
             })
-        // cy.intercept({method:'GET', url:'user/getuserdetails'}).as('getUserdetails');
-        // cy.wait('@getUserdetails')
-        // .its('response.statusCode')
-        // .should('equal',200);
-
-        // cy.get('#withHoldingTax-id1').click().then($le =>
-        //     {
-        //         cy.get('.v-list-item__content').contains('Empty').click({force: true})
-        //     });
+        
         cy.pause();
         cy.contains('Save').click({force:true});
         cy.get('.v-dialog__content--active > .v-dialog > .v-card > .v-card__text').should('contain','Successfully Created Export Pre-Assessment');
         cy.get('#OK-id').click()
-        .wait('@getUpdateExemptions')
+        .wait('@getWalletTransaction')
         .its('response.statusCode')
         .should('equal',200);
         //upload file with attachFile
@@ -79,6 +95,7 @@ describe('GoFastCPA Creating Additional Storage', () => {
         .wait('@getUploadOr')
         .its('response.statusCode')
         .should('equal',200);
+
         cy.get('.v-data-table__wrapper').find('tbody').then($td=>
             {
             if ($td.find('td.text-center').length > 1)
@@ -107,9 +124,7 @@ describe('GoFastCPA Creating Additional Storage', () => {
                 cy.get('.v-btn__content').then($done =>
                     {
                         cy.get('.sm7 > :nth-child(5) > .col-sm-7').should('contain','COMPLETE')
-                    });
-               
-                
+                    });     
             }
             else
             {
@@ -117,19 +132,44 @@ describe('GoFastCPA Creating Additional Storage', () => {
                 cy.get('[data-cy="create-account"]').click({force:true}).then($container =>
                     {
                         cy.get('.container.grid-list-md').should('be.visible')
-                        cy.get('#ContainerNo-id').type('0001').wait(100);
-                        cy.get('#Size-id').click().then(() =>
+                        cy.get('#ContainerNo-id').type(data.export_container.container_no).wait(100);
+                        cy.get('#Size-id').click({force: true}).then(() =>
                         {
-                            cy.get('.v-list-item__content').contains('20').click({force: true})
+                            cy.get('.v-list-item__content').contains(data.export_container.size).click({force: true})
                         });
-                        cy.get('#Bulk-id').type('1').wait(100);
-                        cy.get('#DG-id').type('1').wait(100);
-                        cy.get('#OC-id').type('1').wait(100);
-                        cy.pause();
-                        cy.get('#Save-id').click({force:true});
+                        cy.get('#Bulk-id').type(data.export_container.bulk).wait(100);
+                        cy.get('#Storage-id').type(data.export_container.storage).wait(100);
+                        cy.get('#Penalty-id').type(data.export_container.penalty).wait(100);
+                        cy.get('#DG-id').type(data.export_container.dg).wait(100);
+                        cy.get('#OC-id').type(data.export_container.oc).wait(100);
                     })
-            }
-            })
+                }   
+            });
+            cy.pause();
+            cy.contains('Save').click({force:true})
+            cy.get('.v-dialog__content--active > .v-dialog > .v-card > .v-card__text')
+            .should('contain','Successfully Created Export Pre-Assessment Container');
+            cy.get('#OK-id').click({force: true})
+            .wait('@getUserListUserRoles')
+            .its('response.statusCode')
+            .should('equal',200);
+            cy.get('.v-data-table__wrapper')
+            .find('table')
+            .then(($table)=>
+            {
+                if($table.find('tr').length)
+                {
+                    cy.get('.td').find('.text-start').each(($item) =>
+                    {
+                        cy.contains($item.text()).should('be.visible');
+                    })
+                }
+                else
+                {
+                    cy.pause();
+                }
+                
+            });
     })
     it('Log out to GoFASTCpa', () =>{
         cy.get('[id=profileAvatar-id]').click({force: true})
