@@ -1,0 +1,209 @@
+##Migration Dryrun
+
+#GCP tables:                            Status      Duration
+payconnect_drdb.merchant		        OK          ~30sec
+payconnect_drdb.merchant_commission	    OK          ~30sec
+payconnect_drdb.merchant_adjustment	    OK          ~30sec
+payconnect_drdb.store_ip		        OK          ~30sec
+payconnect_drdb.transaction	                      September 1-present        Aug1 - Aug31             July1-31                June1-30               May1-31              April1-30                  March1-33                                                                  Jan1-Sept20
+ > RECENT PENDING DATA               extract      10 min 46.47 sec(142mb)    15 min 20.48 sec(4.8mb)  14 min 42.83 sec(836kb) 15 min 47.27 sec(5mb)  15 min 0.07 sec(6mb) 15 min 20.77 sec(8.3mb)    26 min 18.22 sec(407kb)             = 16.12  ~17 min/month                 8 hours(181mb)             
+                                     upload       35.78 sec                  2.22 sec                 2.27 sec                2.22 sec               2.79 sec             3.6 sec                    0.10 sec                            = 5.96   ~6 sec/month   
+                                    
+ > PENDING LOYALTY DATA 
+Suggested:
+        - Filter the date per month; continue by reading of date_created > month_backwards
+        - Counted 130k of data with a date_created of 2 days from now  for 1min 10sec; estimated: 15-20mins / 30 days
+Missing column in GCP DB (payconnect_prod.transaction):
+         -seven_payid
+         -message_status_id
+         -merchant_reference_no
+
+09-21-2022
+    
+
+
+
+
+Perform Data Migration
+############MERCHANT############
+#onprem
+SELECT id,enabled,expire_after,merchantid,name,transaction_key,validate_seven_pay,stip,randomize_ref_num,amount_editable,reference_reusable,merchant_logo_url,is_multiple_biller,allow_cliqq_pay,has_price_adjustment,date_created,last_updated, 'admin', 'admin',1,merchantid,10000,60000 INTO OUTFILE '/tmp/pc2-migration-merchant-update.csv' FIELDS TERMINATED BY '~' LINES TERMINATED BY '\r\n' 
+FROM `sevenpay_prod`.`merchant` where id > 161; 
+
+#GCP
+#login to mysql
+SET foreign_key_checks=0;
+LOAD DATA INFILE '/var/lib/mysql-files/pc2-migration-merchant-update.csv' INTO TABLE `payconnect_prod`.`merchant` FIELDS TERMINATED BY '~' 
+LINES TERMINATED BY '\r\n' (id,enabled,expire_after,merchant_id,name,transaction_key,validate_seven_pay,stip,randomize_ref_num,amount_editable,reference_reusable,merchant_logo_url,is_multiple_biller,allow_wallet_payment,has_price_adjustment,
+date_created,last_updated, created_by, last_updated_by,payment_agent_id,merchant_code,connect_timeout,read_timeout);
+
+############MERCHANT COMMISSION############
+#onprem
+SELECT id,merchant_id,fixed_commission,percent_commission,product_name,it_fixed_commission,it_percent_commission,application_date,date_created,last_updated,'admin','admin' INTO OUTFILE '/tmp/pc2-migration-commission-update.csv' FIELDS TERMINATED BY '~' LINES TERMINATED BY '\r\n' 
+FROM `sevenpay_prod`.`merchant_commission` ; 
+
+#GCP
+#login to mysql
+SET foreign_key_checks=0;
+LOAD DATA INFILE '/var/lib/mysql-files/pc2-migration-commission-update.csv' INTO TABLE `payconnect_prod`.`merchant_commission` FIELDS TERMINATED BY '~' 
+LINES TERMINATED BY '\r\n' (id,merchant_id,fixed_commission,percent_commission,product_name,it_fixed_commission,it_percent_commission,application_date,date_created,last_updated,created_by,updated_by);
+
+############MERCHANT ADJUSTMENT############
+#onprem
+SELECT id,merchant_id,fixed_adjustment,percent_adjustment,maximum_amount,minimum_amount,product_name,type,application_date,date_created,last_updated,'admin','admin' INTO OUTFILE '/tmp/pc2-migration-adjustment.csv' FIELDS TERMINATED BY '~' LINES TERMINATED BY '\r\n' 
+FROM `sevenpay_prod`.`merchant_adjustment`; 
+
+#GCP
+#login to mysql
+SET foreign_key_checks=0;
+LOAD DATA INFILE '/var/lib/mysql-files/pc2-migration-adjustment.csv' INTO TABLE `payconnect_prod`.`merchant_adjustment` FIELDS TERMINATED BY '~' 
+LINES TERMINATED BY '\r\n' (id,merchant_id,fixed_adjustment,percent_adjustment,maximum_amount,minimum_amount,product_name,type,application_date,date_created,last_updated,created_by,last_updated_by);
+
+############STORE IP############
+#onprem
+SELECT id,store,ip_address,previous_ip_address,date_created,last_updated,'admin','admin' INTO OUTFILE '/tmp/pc2-migration-store-ip.csv' FIELDS TERMINATED BY '~' LINES TERMINATED BY '\r\n' 
+FROM `sevenpay_prod`.`store_ip`; 
+
+#GCP
+#login to mysql
+SET foreign_key_checks=0;
+LOAD DATA INFILE '/var/lib/mysql-files/pc2-migration-store-ip.csv' INTO TABLE `payconnect_prod`.`store_ip` FIELDS TERMINATED BY '~' 
+LINES TERMINATED BY '\r\n' (id,store,ip_address,previous_ip_address,date_created,last_updated,created_by,updated_by);
+
+############RECENT PENDING DATA############
+#onprem
+SELECT id, seven_payid, merchant_reference_no, payload, amount, date_created, email, system_exp_date, last_updated, merchant_id, receipt_remarks, service_charge, system_exp_date, transaction_description, product_id, type, mobile_number, 15
+INTO OUTFILE '/tmp/pc2-migration-transaction.csv' FIELDS TERMINATED BY '~' LINES TERMINATED BY '\r\n' FROM `sevenpay_prod`.`transaction` where payment_status_id = 1 and date_created > '2022-01-01' and system_exp_date > now(); 
+
+##September 1-21
+SELECT id, seven_payid, merchant_reference_no, payload, amount, date_created, email, system_exp_date, last_updated, merchant_id, receipt_remarks, service_charge, system_exp_date, transaction_description, product_id, type, mobile_number, 15
+INTO OUTFILE '/tmp/pc2-migration-transaction-sept-2022.csv' FIELDS TERMINATED BY '~' LINES TERMINATED BY '\r\n' FROM `sevenpay_prod`.`transaction` where payment_status_id = 1 and date_created >= '2022-09-01' and system_exp_date >= now(); 
+##August 1-31
+SELECT id, seven_payid, merchant_reference_no, payload, amount, date_created, email, system_exp_date, last_updated, merchant_id, receipt_remarks, service_charge, system_exp_date, transaction_description, product_id, type, mobile_number, 15
+INTO OUTFILE '/tmp/pc2-migration-transaction-aug-2022.csv' FIELDS TERMINATED BY '~' LINES TERMINATED BY '\r\n' FROM `sevenpay_prod`.`transaction` where payment_status_id = 1 and date_created >= '2022-08-01' and date_created < '2022-09-01' and system_exp_date >= now();
+##July 1-31
+SELECT id, seven_payid, merchant_reference_no, payload, amount, date_created, email, system_exp_date, last_updated, merchant_id, receipt_remarks, service_charge, system_exp_date, transaction_description, product_id, type, mobile_number, 15
+INTO OUTFILE '/tmp/pc2-migration-transaction-july-2022.csv' FIELDS TERMINATED BY '~' LINES TERMINATED BY '\r\n' FROM `sevenpay_prod`.`transaction` where payment_status_id = 1 and date_created >= '2022-07-01' and date_created < '2022-08-01' and system_exp_date >= now();
+##June 1-30
+SELECT id, seven_payid, merchant_reference_no, payload, amount, date_created, email, system_exp_date, last_updated, merchant_id, receipt_remarks, service_charge, system_exp_date, transaction_description, product_id, type, mobile_number, 15
+INTO OUTFILE '/tmp/pc2-migration-transaction-june-2022.csv' FIELDS TERMINATED BY '~' LINES TERMINATED BY '\r\n' FROM `sevenpay_prod`.`transaction` where payment_status_id = 1 and date_created >= '2022-06-01' and date_created < '2022-07-01' and system_exp_date >= now();
+##May 1-31
+SELECT id, seven_payid, merchant_reference_no, payload, amount, date_created, email, system_exp_date, last_updated, merchant_id, receipt_remarks, service_charge, system_exp_date, transaction_description, product_id, type, mobile_number, 15
+INTO OUTFILE '/tmp/pc2-migration-transaction-may-2022.csv' FIELDS TERMINATED BY '~' LINES TERMINATED BY '\r\n' FROM `sevenpay_prod`.`transaction` where payment_status_id = 1 and date_created >= '2022-05-01' and date_created < '2022-06-01' and system_exp_date >= now();
+##April 1-30
+SELECT id, seven_payid, merchant_reference_no, payload, amount, date_created, email, system_exp_date, last_updated, merchant_id, receipt_remarks, service_charge, system_exp_date, transaction_description, product_id, type, mobile_number, 15
+INTO OUTFILE '/tmp/pc2-migration-transaction-april-2022.csv' FIELDS TERMINATED BY '~' LINES TERMINATED BY '\r\n' FROM `sevenpay_prod`.`transaction` where payment_status_id = 1 and date_created >= '2022-04-01' and date_created < '2022-05-01' and system_exp_date >= now();
+##march 1-31
+SELECT id, seven_payid, merchant_reference_no, payload, amount, date_created, email, system_exp_date, last_updated, merchant_id, receipt_remarks, service_charge, system_exp_date, transaction_description, product_id, type, mobile_number, 15
+INTO OUTFILE '/tmp/pc2-migration-transaction-march-2022.csv' FIELDS TERMINATED BY '~' LINES TERMINATED BY '\r\n' FROM `sevenpay_prod`.`transaction` where payment_status_id = 1 and date_created >= '2022-03-01' and date_created < '2022-04-01' and system_exp_date >= now();
+
+##transfer to gcp masterdb
+    $ rsync -avrh –progress /tmp/pc2-migration-transaction-<month>-2022.csv jinro_gcp@172.65.0.15:/home/jinro_gcp
+
+    $ rsync -avrh –progress /tmp/pc2-migration-transaction-sept-2022.csv jinro_gcp@172.65.0.15:/home/jinro_gcp 
+    $ rsync -avrh –progress /tmp/pc2-migration-transaction-aug-2022.csv jinro_gcp@172.65.0.15:/home/jinro_gcp
+    $ rsync -avrh –progress /tmp/pc2-migration-transaction-july-2022.csv jinro_gcp@172.65.0.15:/home/jinro_gcp
+    $ rsync -avrh –progress /tmp/pc2-migration-transaction-june-2022.csv jinro_gcp@172.65.0.15:/home/jinro_gcp
+    $ rsync -avrh –progress /tmp/pc2-migration-transaction-may-2022.csv jinro_gcp@172.65.0.15:/home/jinro_gcp
+    $ rsync -avrh –progress /tmp/pc2-migration-transaction-april-2022.csv jinro_gcp@172.65.0.15:/home/jinro_gcp
+    $ rsync -avrh –progress /tmp/pc2-migration-transaction-march-2022.csv jinro_gcp@172.65.0.15:/home/jinro_gcp
+#GCP-LOAD csv file
+#login to mysql
+SET foreign_key_checks=0;
+
+LOAD DATA INFILE '/var/lib/mysql-files/pc2-migration-transaction-sept-2022.csv' REPLACE INTO TABLE `payconnect_drdb`.`transaction` FIELDS TERMINATED BY '~' 
+LINES TERMINATED BY '\r\n' (id, payconnect_reference, merchant_reference_number, payload, amount, date_created, email, system_exp_date, last_updated, merchant_id, receipt_remarks, service_charge, system_exp_date, transaction_description, product_id, type, mobile_number, message_status_id);
+
+LOAD DATA INFILE '/var/lib/mysql-files/pc2-migration-transaction-aug-2022.csv' REPLACE INTO TABLE `payconnect_drdb`.`transaction` FIELDS TERMINATED BY '~' 
+LINES TERMINATED BY '\r\n' (id, payconnect_reference, merchant_reference_number, payload, amount, date_created, email, system_exp_date, last_updated, merchant_id, receipt_remarks, service_charge, system_exp_date, transaction_description, product_id, type, mobile_number, message_status_id);
+
+LOAD DATA INFILE '/var/lib/mysql-files/pc2-migration-transaction-july-2022.csv' REPLACE INTO TABLE `payconnect_drdb`.`transaction` FIELDS TERMINATED BY '~' 
+LINES TERMINATED BY '\r\n' (id, payconnect_reference, merchant_reference_number, payload, amount, date_created, email, system_exp_date, last_updated, merchant_id, receipt_remarks, service_charge, system_exp_date, transaction_description, product_id, type, mobile_number, message_status_id);
+
+LOAD DATA INFILE '/var/lib/mysql-files/pc2-migration-transaction-june-2022.csv' REPLACE INTO TABLE `payconnect_drdb`.`transaction` FIELDS TERMINATED BY '~' 
+LINES TERMINATED BY '\r\n' (id, payconnect_reference, merchant_reference_number, payload, amount, date_created, email, system_exp_date, last_updated, merchant_id, receipt_remarks, service_charge, system_exp_date, transaction_description, product_id, type, mobile_number, message_status_id);
+
+LOAD DATA INFILE '/var/lib/mysql-files/pc2-migration-transaction-may-2022.csv' REPLACE INTO TABLE `payconnect_drdb`.`transaction` FIELDS TERMINATED BY '~' 
+LINES TERMINATED BY '\r\n' (id, payconnect_reference, merchant_reference_number, payload, amount, date_created, email, system_exp_date, last_updated, merchant_id, receipt_remarks, service_charge, system_exp_date, transaction_description, product_id, type, mobile_number, message_status_id);
+
+LOAD DATA INFILE '/var/lib/mysql-files/pc2-migration-transaction-april-2022.csv' REPLACE INTO TABLE `payconnect_drdb`.`transaction` FIELDS TERMINATED BY '~' 
+LINES TERMINATED BY '\r\n' (id, payconnect_reference, merchant_reference_number, payload, amount, date_created, email, system_exp_date, last_updated, merchant_id, receipt_remarks, service_charge, system_exp_date, transaction_description, product_id, type, mobile_number, message_status_id);
+
+LOAD DATA INFILE '/var/lib/mysql-files/pc2-migration-transaction-march-2022.csv' REPLACE INTO TABLE `payconnect_drdb`.`transaction` FIELDS TERMINATED BY '~' 
+LINES TERMINATED BY '\r\n' (id, payconnect_reference, merchant_reference_number, payload, amount, date_created, email, system_exp_date, last_updated, merchant_id, receipt_remarks, service_charge, system_exp_date, transaction_description, product_id, type, mobile_number, message_status_id);
+
+
+
+select id, seven_payid, merchant_reference_no, payload, amount, date_created, email, system_exp_date, last_updated, merchant_id, receipt_remarks, service_charge, system_exp_date, transaction_description, product_id, type, mobile_number, message_status_id from transaction where id = 772918469;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+############PENDING LOYALTY DATA############
+#onprem
+SELECT id, seven_payid, merchant_reference_no, payload, amount, date_created, email, system_exp_date, last_updated, merchant_id, receipt_remarks, service_charge, system_exp_date, transaction_description, product_id, type, mobile_number, 15
+INTO OUTFILE '/tmp/pc2-migration-transaction-loyalty.csv' FIELDS TERMINATED BY '~' LINES TERMINATED BY '\r\n' FROM `sevenpay_prod`.`transaction` WHERE merchant_id = 63 AND payment_status_id = 1 AND exp_date > now() AND date_created < '2016-01-01 00:00:00' AND id < 10556905;
+
+#GCP
+#login to mysql
+SET foreign_key_checks=0;
+LOAD DATA INFILE '/var/lib/mysql-files/pc2-migration-transaction-loyalty.csv' INTO TABLE `payconnect_prod`.`transaction` FIELDS TERMINATED BY '~' 
+LINES TERMINATED BY '\r\n' (id, payconnect_reference, merchant_reference_number, payload, amount, date_created, email, system_exp_date, last_updated, merchant_id, receipt_remarks, service_charge, system_exp_date, transaction_description, product_id, type, mobile_number, message_status_id);
+
+RECOMMENDATION:
+    1.   Add/move the starting value of id to 360^6 (1000000 per day) in auto-generating of id. Therefore, initial id = 10000001
+        Set Initial id:
+        mysql > ALTER TABLE payconnect_drdb.transaction AUTO_INCREMENT = 1000000;
+        Add new row:
+         mysql >  INSERT INTO table transaction (id,name) VALUES (0,'Jinro');
+        remarks:   
+            -id column not set to auto increment
+Remarks:
+    Plan B
+        - Filter the date per month; continue by reading of date_created > month_backwards
+        - Counted 130k of data with a date_created of 2 days from now  for 1min 10sec; estimated: 15-20mins / 30 days
+
+    -
+    -
+
+
+Show Unused Space for listed tables Tables:
+    select table_name, data_length, data_free from information_schema.tables where table_name in ('transaction') and table_schema='sevenpay_prod';
+In GB:
+    select table_name, round(data_length/1024/1024/1024), round(data_free/1024/1024/102
+    
+
+
+
+Remarks:
+sevenpay_prod.transaction
+| payload                    | longtext     | YES  |     | NULL    |                |
+payconnect_prod.transaction
+| payload                    | varchar(255) | YES  |     | NULL    |                |
+
+ALTER TABLE transaction MODIFY payload longtext;
+
+                                    april-sept21     march-sept21
+payconnect_prod.transaction.count = 553135           555239
+sevenpay_prod.transaction.count = 
+
+
+
+
+seven_payid=payconnect_reference
+merchant_reference_no=merchant_reference_number
